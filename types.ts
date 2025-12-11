@@ -84,3 +84,11 @@ export interface AppState {
 export interface GeneratedResult {
   imageUrl: string;
 }
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string; // Stored in localStorage for demo purposes
+  apiKey?: string;
+}
