@@ -3,16 +3,18 @@ import { AppState, LocationType, OutfitType, AppMode } from "../types";
 
 const GEMINI_MODEL = 'gemini-2.5-flash-image';
 
-export const generateImage = async (state: AppState): Promise<string> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing. Please set process.env.API_KEY.");
+export const generateImage = async (state: AppState, dynamicApiKey?: string): Promise<string> => {
+  const apiKey = dynamicApiKey || process.env.API_KEY;
+
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please provide a valid API Key.");
   }
 
   if (!state.referenceImage) {
     throw new Error("Reference image is missing.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   // Determine Prompt Logic based on Mode
   const locationText = state.location === LocationType.CUSTOM ? state.customLocation : state.location;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User, Users, ShoppingBag, ClipboardPaste, ExternalLink } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User, Users, ShoppingBag, ClipboardPaste, ExternalLink, ArrowRight } from 'lucide-react';
 import { AppState, LocationType, LightingType, OutfitType, MoodType, FramingType, AppMode, DuoAction, ProductAction } from './types';
 import { LOCATIONS, LIGHTINGS, OUTFITS, MOODS, FRAMINGS, DUO_ACTIONS, PRODUCT_ACTIONS } from './constants';
 import { generateImage, fileToBase64, fileToDataURL } from './services/geminiService';
@@ -25,8 +25,11 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Auth States
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
+  const [manualApiKey, setManualApiKey] = useState<string>("");
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -41,15 +44,22 @@ function App() {
 
   const checkApiKey = async () => {
     try {
+      // Check for Environment Key
+      if (process.env.API_KEY) {
+        setHasApiKey(true);
+        setIsCheckingKey(false);
+        return;
+      }
+      
+      // Check for AI Studio IDX Key
       if ((window as any).aistudio) {
         const has = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(has);
-      } else {
-        setHasApiKey(true);
+        if (has) {
+           setHasApiKey(true);
+        }
       }
     } catch (e) {
       console.error("Error checking API key:", e);
-      setHasApiKey(false);
     } finally {
       setIsCheckingKey(false);
     }
@@ -61,6 +71,21 @@ function App() {
       setHasApiKey(true);
       setError(null);
     }
+  };
+
+  const handleManualKeySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualApiKey.trim().length > 10) {
+      setHasApiKey(true);
+      setError(null);
+    } else {
+      setError("A chave API parece inválida ou muito curta.");
+    }
+  };
+
+  const handleResetKey = () => {
+    setHasApiKey(false);
+    setManualApiKey("");
   };
 
   // --- Handlers ---
@@ -141,15 +166,18 @@ function App() {
     setError(null);
 
     try {
-      const imageUrl = await generateImage(formData);
+      const imageUrl = await generateImage(formData, manualApiKey);
       setGeneratedImageUrl(imageUrl);
     } catch (err: any) {
       console.error(err);
       if (err.message && (err.message.includes("403") || err.message.includes("PERMISSION_DENIED"))) {
         setError("Permissão negada (403). Sua chave de API pode não ter acesso ou expirou.");
-        setHasApiKey(false);
+        setHasApiKey(false); // Force re-login
       } else if (err.message && err.message.includes("Requested entity was not found")) {
-        setError("Chave inválida ou expirada. Por favor, selecione novamente.");
+        setError("Chave inválida ou expirada. Por favor, insira novamente.");
+        setHasApiKey(false);
+      } else if (err.message && err.message.includes("API Key is missing")) {
+        setError("Chave API não encontrada.");
         setHasApiKey(false);
       } else {
         setError(err.message || "Ocorreu um erro ao gerar a imagem. Tente novamente.");
@@ -217,21 +245,50 @@ function App() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-white tracking-tight">RealSelf AI</h1>
             <p className="text-slate-400">
-              Para gerar imagens hiper-realistas, precisamos conectar aos serviços do Google AI Studio.
+              Para gerar imagens, insira sua chave da API Gemini.
             </p>
           </div>
 
           <div className="space-y-4">
-            <button 
-              onClick={handleSelectKey}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold tracking-wide transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2 group"
-            >
-              <KeyRound className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              Conectar API Key
-            </button>
+            {/* Show IDX connect button only if available */}
+            {(window as any).aistudio && (
+              <>
+                <button 
+                  onClick={handleSelectKey}
+                  className="w-full py-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium tracking-wide transition-all border border-white/10 flex items-center justify-center gap-2"
+                >
+                  <KeyRound className="w-5 h-5" />
+                  Conectar via AI Studio (IDX)
+                </button>
+                <div className="flex items-center gap-4 text-xs text-slate-600">
+                  <div className="h-[1px] bg-slate-800 flex-1"></div>
+                  OU
+                  <div className="h-[1px] bg-slate-800 flex-1"></div>
+                </div>
+              </>
+            )}
+
+            <form onSubmit={handleManualKeySubmit} className="space-y-3">
+              <div className="relative group">
+                <input
+                  type="password"
+                  value={manualApiKey}
+                  onChange={(e) => setManualApiKey(e.target.value)}
+                  placeholder="Cole sua API Key aqui..."
+                  className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-4 text-white placeholder-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none transition-all group-hover:border-slate-600"
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={manualApiKey.length < 10}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold tracking-wide transition-all shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Entrar <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
             
             <p className="text-xs text-slate-500 leading-relaxed flex items-center justify-center gap-1">
-              *Nota: Obtenha sua chave gratuitamente no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-0.5">Google AI Studio <ExternalLink className="w-3 h-3"/></a>.
+              Não tem uma chave? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-0.5">Criar Grátis <ExternalLink className="w-3 h-3"/></a>.
             </p>
           </div>
         </div>
@@ -299,7 +356,7 @@ function App() {
                Obter Key Grátis
                <ExternalLink className="w-3 h-3" />
              </a>
-             <button onClick={handleSelectKey} title="Trocar API Key" className="p-2 bg-white/5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+             <button onClick={handleResetKey} title="Sair / Trocar API Key" className="p-2 bg-white/5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                 <KeyRound className="w-4 h-4" />
              </button>
              <div className="text-[10px] text-slate-500 font-mono ml-2 hidden sm:block">
@@ -346,10 +403,10 @@ function App() {
               <div className="flex gap-2">
                 {(error.includes("Permissão negada") || error.includes("Chave inválida")) && (
                   <button 
-                    onClick={handleSelectKey}
+                    onClick={handleResetKey}
                     className="self-start px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-100 text-xs rounded-lg transition-colors border border-red-500/20"
                   >
-                    Reconectar API Key
+                    Trocar API Key
                   </button>
                 )}
                  <a 
