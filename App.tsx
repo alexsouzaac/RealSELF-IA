@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User as UserIcon, Users, ShoppingBag, ClipboardPaste, ExternalLink, ArrowRight, LogOut } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User as UserIcon, Users, ShoppingBag, ClipboardPaste, ExternalLink, ArrowRight, LogOut, AlertTriangle } from 'lucide-react';
 import { AppState, LocationType, LightingType, OutfitType, MoodType, FramingType, AppMode, DuoAction, ProductAction, User } from './types';
 import { LOCATIONS, LIGHTINGS, OUTFITS, MOODS, FRAMINGS, DUO_ACTIONS, PRODUCT_ACTIONS } from './constants';
 import { generateImage, fileToBase64, fileToDataURL } from './services/geminiService';
@@ -55,8 +55,11 @@ function App() {
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    // IMPORTANTE: Carrega a chave salva no perfil do usuário
     if (user.apiKey) {
       setManualApiKey(user.apiKey);
+    } else {
+      setManualApiKey(""); // Limpa se não tiver chave
     }
   };
 
@@ -65,18 +68,19 @@ function App() {
     setCurrentUser(null);
     setGeneratedImageUrl(null);
     setFormData(DEFAULT_STATE);
+    setManualApiKey("");
   };
 
   const handleSaveApiKey = (e: React.FormEvent) => {
     e.preventDefault();
-    if (manualApiKey.length > 10 && currentUser) {
+    if (manualApiKey.length > 20 && currentUser) {
       authService.updateApiKey(currentUser.email, manualApiKey);
       // Update local state
       setCurrentUser({...currentUser, apiKey: manualApiKey});
       setError(null);
-      alert("Chave API salva com sucesso no seu perfil!");
+      alert("Chave API salva com sucesso no seu perfil! Agora você pode gerar imagens.");
     } else {
-      setError("Chave inválida.");
+      setError("A Chave API parece inválida (muito curta).");
     }
   };
 
@@ -150,11 +154,12 @@ function App() {
     }
 
     // 2. API Key Check
+    // Prioridade: Chave manual digitada/salva > Chave de ambiente
     let keyToUse = manualApiKey;
     if (!keyToUse && process.env.API_KEY) keyToUse = process.env.API_KEY;
     
     if (!keyToUse) {
-      setError("Você precisa configurar uma API Key nas configurações (ícone de chave no topo) para gerar imagens.");
+      setError("⚠️ ATENÇÃO: Você precisa adicionar sua API Key do Gemini. Use o campo no topo da página ou na mensagem de erro para salvar.");
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -170,9 +175,9 @@ function App() {
       const msg = err.message || "";
       
       if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
-        setError("Permissão negada (403). Verifique se a API Key no seu perfil está correta e ativa.");
+        setError("Erro de Permissão (403). Sua chave API pode ser inválida ou não ter permissões. Verifique no Google AI Studio.");
       } else if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("limit") || msg.includes("429")) {
-        setError("Limite de cota atingido (Erro 429). O plano gratuito tem limites restritos. Aguarde 1 minuto e tente novamente.");
+        setError("⏳ LIMITE ATINGIDO (Erro 429): O plano gratuito da Google tem limites de geração. Aguarde 1 minuto e tente novamente.");
       } else {
         setError(msg || "Ocorreu um erro ao gerar a imagem. Tente novamente.");
       }
@@ -219,7 +224,7 @@ function App() {
   // --- Render Logic ---
 
   if (loadingUser) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>;
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-white w-10 h-10" /></div>;
   }
 
   // Show Auth Screen if not logged in
@@ -276,11 +281,11 @@ function App() {
                   type="password" 
                   value={manualApiKey}
                   onChange={(e) => setManualApiKey(e.target.value)}
-                  placeholder="API Key..."
-                  className="w-32 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:w-64 transition-all outline-none"
+                  placeholder="Cole sua API Key aqui..."
+                  className="w-40 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:w-64 transition-all outline-none placeholder-slate-500"
                 />
                 <button type="submit" title="Salvar Key" className="p-1.5 bg-indigo-600 rounded-md hover:bg-indigo-500 transition-colors">
-                  <KeyRound className="w-3 h-3 text-white" />
+                  <KeyRound className="w-3.5 h-3.5 text-white" />
                 </button>
              </form>
 
@@ -288,9 +293,9 @@ function App() {
                href="https://aistudio.google.com/app/apikey" 
                target="_blank" 
                rel="noopener noreferrer"
-               className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-green-400 hover:text-green-300 bg-green-500/10 hover:bg-green-500/20 px-2 py-1.5 rounded-md transition-colors border border-green-500/20"
+               className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-md transition-colors border border-emerald-500/20"
              >
-               Obter Key
+               Criar Key Grátis
                <ExternalLink className="w-3 h-3" />
              </a>
 
@@ -305,9 +310,11 @@ function App() {
         </div>
         
         {/* API Key warning for mobile or empty state */}
-        {!currentUser.apiKey && !manualApiKey && (
-           <div className="bg-amber-500/10 text-amber-200 text-xs text-center py-1 border-b border-amber-500/20">
-             ⚠️ Configure sua API Key no topo (computador) ou abaixo para gerar imagens.
+        {!manualApiKey && (
+           <div className="bg-amber-500/10 text-amber-200 text-xs text-center py-2 border-b border-amber-500/20 px-4 flex items-center justify-center gap-2">
+             <AlertTriangle className="w-3 h-3" />
+             <span>Você precisa de uma API Key para usar o app.</span>
+             <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline font-bold">Gerar aqui</a>
            </div>
         )}
 
@@ -343,22 +350,25 @@ function App() {
         
         {/* Error Display */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-xl text-sm flex items-start gap-2 animate-in fade-in slide-in-from-top-2">
-            <Info className="w-5 h-5 shrink-0 mt-0.5" /> 
+          <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+            <Info className="w-5 h-5 shrink-0 mt-0.5 text-red-400" /> 
             <div className="flex flex-col gap-2 w-full">
-              <span>{error}</span>
-              {/* If no API key, show input explicitly in error box */}
-              {error.includes("API Key") && (
-                 <form onSubmit={handleSaveApiKey} className="flex gap-2 mt-2">
-                    <input 
-                      type="password"
-                      value={manualApiKey}
-                      onChange={(e) => setManualApiKey(e.target.value)}
-                      placeholder="Cole sua API Key aqui..."
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs outline-none"
-                    />
-                    <button type="submit" className="px-3 py-1 bg-indigo-600 rounded-lg text-white text-xs">Salvar</button>
-                 </form>
+              <span className="font-medium">{error}</span>
+              {/* If API key error, show input explicitly in error box */}
+              {(error.includes("API Key") || error.includes("403")) && (
+                 <div className="mt-2 bg-black/20 p-3 rounded-lg">
+                     <p className="text-xs text-slate-400 mb-2">Cole sua chave aqui para corrigir:</p>
+                     <form onSubmit={handleSaveApiKey} className="flex gap-2">
+                        <input 
+                        type="password"
+                        value={manualApiKey}
+                        onChange={(e) => setManualApiKey(e.target.value)}
+                        placeholder="Cole sua API Key aqui..."
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-indigo-500"
+                        />
+                        <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-xs font-bold transition-colors">Salvar</button>
+                    </form>
+                 </div>
               )}
             </div>
           </div>
@@ -379,7 +389,7 @@ function App() {
                 relative group cursor-pointer transition-all duration-300
                 border-2 border-dashed rounded-3xl h-64 flex flex-col items-center justify-center
                 overflow-hidden bg-slate-900/30
-                ${formData.referenceImage ? 'border-green-500/50 bg-green-900/10' : 'border-slate-700 hover:border-slate-500'}
+                ${formData.referenceImage ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-slate-700 hover:border-slate-500'}
               `}
             >
               <input 
@@ -392,13 +402,13 @@ function App() {
               {formData.referenceImage ? (
                 <>
                   <img src={formData.referenceImage.previewUrl} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="1" />
-                  <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 className="w-8 h-8 text-green-400 drop-shadow-lg" /></div>
+                  <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 className="w-10 h-10 text-emerald-400 drop-shadow-xl" /></div>
                 </>
               ) : (
                 <div className="text-center p-4">
-                  <ImageIcon className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">
-                    {formData.mode === AppMode.PRODUCT ? "Pessoa" : (formData.mode === AppMode.DUO ? "Pessoa 1" : "Você")}
+                  <ImageIcon className="w-8 h-8 text-slate-500 mx-auto mb-2 group-hover:text-slate-400 transition-colors" />
+                  <p className="text-xs text-slate-400 uppercase font-bold tracking-wider group-hover:text-white transition-colors">
+                    {formData.mode === AppMode.PRODUCT ? "Pessoa" : (formData.mode === AppMode.DUO ? "Pessoa 1" : "Sua Foto")}
                   </p>
                 </div>
               )}
@@ -412,7 +422,7 @@ function App() {
                   relative group cursor-pointer transition-all duration-300
                   border-2 border-dashed rounded-3xl h-64 flex flex-col items-center justify-center
                   overflow-hidden bg-slate-900/30
-                  ${formData.secondImage ? 'border-green-500/50 bg-green-900/10' : 'border-slate-700 hover:border-slate-500'}
+                  ${formData.secondImage ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-slate-700 hover:border-slate-500'}
                 `}
               >
                 <input 
@@ -425,16 +435,16 @@ function App() {
                 {formData.secondImage ? (
                   <>
                     <img src={formData.secondImage.previewUrl} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="2" />
-                    <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 className="w-8 h-8 text-green-400 drop-shadow-lg" /></div>
+                    <div className="absolute inset-0 flex items-center justify-center"><CheckCircle2 className="w-10 h-10 text-emerald-400 drop-shadow-xl" /></div>
                   </>
                 ) : (
                   <div className="text-center p-4">
                     {formData.mode === AppMode.PRODUCT ? (
-                       <ShoppingBag className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                       <ShoppingBag className="w-8 h-8 text-slate-500 mx-auto mb-2 group-hover:text-slate-400 transition-colors" />
                     ) : (
-                       <Users className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                       <Users className="w-8 h-8 text-slate-500 mx-auto mb-2 group-hover:text-slate-400 transition-colors" />
                     )}
-                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">
+                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider group-hover:text-white transition-colors">
                       {formData.mode === AppMode.PRODUCT ? "Produto" : "Pessoa 2"}
                     </p>
                   </div>
@@ -455,7 +465,7 @@ function App() {
               <select 
                 value={formData.location}
                 onChange={(e) => setFormData({...formData, location: e.target.value as LocationType})}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none cursor-pointer hover:border-slate-600 transition-colors"
               >
                 {LOCATIONS.map(loc => (
                   <option key={loc.value} value={loc.value}>{loc.label}</option>
@@ -524,7 +534,7 @@ function App() {
               <select 
                 value={formData.outfit}
                 onChange={(e) => setFormData({...formData, outfit: e.target.value as OutfitType})}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-violet-500 outline-none appearance-none"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white focus:ring-2 focus:ring-violet-500 outline-none appearance-none cursor-pointer hover:border-slate-600 transition-colors"
               >
                 {OUTFITS.map(fit => (
                   <option key={fit.value} value={fit.value}>{fit.label}</option>
@@ -564,7 +574,7 @@ function App() {
                 const isSelected = formData.mood === mood.value;
                 return (
                   <button key={mood.value} onClick={() => setFormData({...formData, mood: mood.value})}
-                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`}>
                     <Icon className={`w-6 h-6 ${isSelected ? 'text-violet-300' : ''}`} />
                     <span className="text-xs">{mood.label}</span>
                   </button>
@@ -577,7 +587,7 @@ function App() {
                 const isSelected = formData.duoAction === action.value;
                 return (
                   <button key={action.value} onClick={() => setFormData({...formData, duoAction: action.value})}
-                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`}>
                     <Icon className={`w-6 h-6 ${isSelected ? 'text-violet-300' : ''}`} />
                     <span className="text-xs">{action.label}</span>
                   </button>
@@ -590,7 +600,7 @@ function App() {
                 const isSelected = formData.productAction === action.value;
                 return (
                   <button key={action.value} onClick={() => setFormData({...formData, productAction: action.value})}
-                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                    className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 text-center h-24 ${isSelected ? 'bg-violet-500/20 border-violet-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-500 hover:bg-slate-800'}`}>
                     <Icon className={`w-6 h-6 ${isSelected ? 'text-violet-300' : ''}`} />
                     <span className="text-xs">{action.label}</span>
                   </button>
