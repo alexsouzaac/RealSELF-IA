@@ -170,17 +170,22 @@ function App() {
       setGeneratedImageUrl(imageUrl);
     } catch (err: any) {
       console.error(err);
-      if (err.message && (err.message.includes("403") || err.message.includes("PERMISSION_DENIED"))) {
+      const msg = err.message || "";
+      
+      if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
         setError("Permissão negada (403). Sua chave de API pode não ter acesso ou expirou.");
         setHasApiKey(false); // Force re-login
-      } else if (err.message && err.message.includes("Requested entity was not found")) {
+      } else if (msg.includes("Requested entity was not found")) {
         setError("Chave inválida ou expirada. Por favor, insira novamente.");
         setHasApiKey(false);
-      } else if (err.message && err.message.includes("API Key is missing")) {
+      } else if (msg.includes("API Key is missing")) {
         setError("Chave API não encontrada.");
         setHasApiKey(false);
+      } else if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("limit") || msg.includes("429")) {
+        // Handle Rate Limit explicitly
+        setError("Limite gratuito temporário atingido. O Google pede que você aguarde alguns segundos (aprox 30s) antes de tentar novamente.");
       } else {
-        setError(err.message || "Ocorreu um erro ao gerar a imagem. Tente novamente.");
+        setError(msg || "Ocorreu um erro ao gerar a imagem. Tente novamente.");
       }
     } finally {
       setIsGenerating(false);
