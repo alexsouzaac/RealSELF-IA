@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User, Users, ShoppingBag, ClipboardPaste } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, CheckCircle2, MapPin, Shirt, Camera, RefreshCcw, Loader2, Info, KeyRound, User, Users, ShoppingBag, ClipboardPaste, ExternalLink } from 'lucide-react';
 import { AppState, LocationType, LightingType, OutfitType, MoodType, FramingType, AppMode, DuoAction, ProductAction } from './types';
 import { LOCATIONS, LIGHTINGS, OUTFITS, MOODS, FRAMINGS, DUO_ACTIONS, PRODUCT_ACTIONS } from './constants';
 import { generateImage, fileToBase64, fileToDataURL } from './services/geminiService';
@@ -230,8 +230,8 @@ function App() {
               Conectar API Key
             </button>
             
-            <p className="text-xs text-slate-500 leading-relaxed">
-              *Nota: Utilize uma API Key do Google AI Studio.
+            <p className="text-xs text-slate-500 leading-relaxed flex items-center justify-center gap-1">
+              *Nota: Obtenha sua chave gratuitamente no <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-0.5">Google AI Studio <ExternalLink className="w-3 h-3"/></a>.
             </p>
           </div>
         </div>
@@ -288,11 +288,21 @@ function App() {
               </span>
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-             <button onClick={handleSelectKey} title="Trocar API Key" className="text-slate-500 hover:text-white transition-colors">
+          <div className="flex items-center gap-3">
+             <a 
+               href="https://aistudio.google.com/app/apikey" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-1.5 rounded-md transition-colors border border-indigo-500/20"
+               title="Obter chave gratuita no Google AI Studio"
+             >
+               Obter Key Grátis
+               <ExternalLink className="w-3 h-3" />
+             </a>
+             <button onClick={handleSelectKey} title="Trocar API Key" className="p-2 bg-white/5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                 <KeyRound className="w-4 h-4" />
              </button>
-             <div className="text-[10px] text-slate-500 font-mono">
+             <div className="text-[10px] text-slate-500 font-mono ml-2 hidden sm:block">
               Credits: Alex Souza
             </div>
           </div>
@@ -333,14 +343,24 @@ function App() {
             <Info className="w-5 h-5 shrink-0 mt-0.5" /> 
             <div className="flex flex-col gap-2 w-full">
               <span>{error}</span>
-              {(error.includes("Permissão negada") || error.includes("Chave inválida")) && (
-                <button 
-                  onClick={handleSelectKey}
-                  className="self-start px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-100 text-xs rounded-lg transition-colors border border-red-500/20"
-                >
-                  Reconectar API Key
-                </button>
-              )}
+              <div className="flex gap-2">
+                {(error.includes("Permissão negada") || error.includes("Chave inválida")) && (
+                  <button 
+                    onClick={handleSelectKey}
+                    className="self-start px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-100 text-xs rounded-lg transition-colors border border-red-500/20"
+                  >
+                    Reconectar API Key
+                  </button>
+                )}
+                 <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="self-start px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs rounded-lg transition-colors border border-indigo-500/20 flex items-center gap-1"
+                  >
+                    Gerar nova Key <ExternalLink className="w-3 h-3" />
+                  </a>
+              </div>
             </div>
           </div>
         )}
