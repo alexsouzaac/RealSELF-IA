@@ -3,11 +3,14 @@ import { AppState, LocationType, OutfitType, AppMode } from "../types";
 
 const GEMINI_MODEL = 'gemini-2.5-flash-image';
 
+// Função auxiliar para esperar (delay)
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const generateImage = async (state: AppState, dynamicApiKey?: string): Promise<string> => {
   const apiKey = dynamicApiKey || process.env.API_KEY;
 
   if (!apiKey) {
-    throw new Error("API Key_MISSING");
+    throw new Error("API Key is missing. Please provide a valid API Key.");
   }
 
   if (!state.referenceImage) {
@@ -138,54 +141,71 @@ export const generateImage = async (state: AppState, dynamicApiKey?: string): Pr
     });
   }
 
-  try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: {
-        parts: parts,
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "3:4"
+  // Lógica de Retry (Tentativas) para contornar erro 429
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: {
+          parts: parts,
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "3:4"
+          }
+        }
+      });
+
+      const candidates = response.candidates;
+      if (candidates && candidates.length > 0) {
+        const resultParts = candidates[0].content.parts;
+        for (const part of resultParts) {
+          if (part.inlineData && part.inlineData.data) {
+            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          }
         }
       }
-    });
+      throw new Error("No image generated in the response.");
 
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      const resultParts = candidates[0].content.parts;
-      for (const part of resultParts) {
-        if (part.inlineData && part.inlineData.data) {
-          return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-        }
+    } catch (error: any) {
+      console.warn(`Tentativa ${attempt} falhou:`, error.message);
+      lastError = error;
+
+      // Verifica se é erro de Cota (429) ou Serviço Indisponível (503)
+      const isQuotaError = error.message?.includes("429") || 
+                           error.message?.includes("Quota exceeded") || 
+                           error.message?.includes("RESOURCE_EXHAUSTED");
+      
+      if (isQuotaError && attempt < maxRetries) {
+        // Espera exponencial: 2s, 4s, 8s...
+        const delayTime = 2000 * Math.pow(2, attempt - 1);
+        console.log(`Aguardando ${delayTime}ms antes de tentar novamente...`);
+        await wait(delayTime);
+        continue; // Tenta novamente
+      } else {
+        // Se não for erro de cota ou se acabaram as tentativas, lança o erro
+        break;
       }
     }
-
-    throw new Error("No image generated in the response.");
-  } catch (error: any) {
-    console.error("Gemini Generation Error:", error);
-    let errorMessage = error.message || "Failed to generate image.";
-    
-    // Tratamento específico de erros da API
-    if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
-        throw new Error("QUOTA_EXCEEDED");
-    }
-    
-    if (errorMessage.includes("403") || errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("API Key")) {
-        throw new Error("INVALID_KEY");
-    }
-
-    if (errorMessage.includes("{")) {
-        try {
-            const parsed = JSON.parse(errorMessage.substring(errorMessage.indexOf("{")));
-            if (parsed.error && parsed.error.message) {
-                errorMessage = parsed.error.message;
-            }
-        } catch (e) {
-        }
-    }
-    throw new Error(errorMessage);
   }
+
+  // Se chegou aqui, falhou todas as tentativas
+  console.error("Gemini Generation Error Final:", lastError);
+  let errorMessage = lastError?.message || "Failed to generate image.";
+  
+  if (errorMessage.includes("{")) {
+      try {
+          const parsed = JSON.parse(errorMessage.substring(errorMessage.indexOf("{")));
+          if (parsed.error && parsed.error.message) {
+              errorMessage = parsed.error.message;
+          }
+      } catch (e) {}
+  }
+  
+  throw new Error(errorMessage);
 };
 
 export const fileToBase64 = (file: File): Promise<string> => {
