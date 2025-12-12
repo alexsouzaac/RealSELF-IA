@@ -33,6 +33,7 @@ function App() {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualApiKey, setManualApiKey] = useState<string>("");
+  const [showKeyInput, setShowKeyInput] = useState(false);
   
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -78,6 +79,7 @@ function App() {
       // Update local state
       setCurrentUser({...currentUser, apiKey: manualApiKey});
       setError(null);
+      setShowKeyInput(false);
       alert("Chave API salva com sucesso no seu perfil! Agora você pode gerar imagens.");
     } else {
       setError("A Chave API parece inválida (muito curta).");
@@ -153,13 +155,16 @@ function App() {
       return;
     }
 
-    // 2. API Key Check
-    // Prioridade: Chave manual digitada/salva > Chave de ambiente
+    // 2. API Key Strategy
+    // Tenta usar a chave manual do usuário primeiro.
     let keyToUse = manualApiKey;
+    
+    // Se não tiver chave manual, tenta a do ambiente, mas sabemos que no Vercel isso vai dar erro de cota eventualmente.
     if (!keyToUse && process.env.API_KEY) keyToUse = process.env.API_KEY;
     
     if (!keyToUse) {
-      setError("⚠️ ATENÇÃO: Você precisa adicionar sua API Key do Gemini. Use o campo no topo da página ou na mensagem de erro para salvar.");
+      setError("API Key_MISSING"); // Force specific error flow
+      setShowKeyInput(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -174,12 +179,21 @@ function App() {
       console.error(err);
       const msg = err.message || "";
       
-      if (msg.includes("403") || msg.includes("PERMISSION_DENIED")) {
-        setError("Erro de Permissão (403). Sua chave API pode ser inválida ou não ter permissões. Verifique no Google AI Studio.");
-      } else if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("limit") || msg.includes("429")) {
-        setError("⏳ LIMITE ATINGIDO (Erro 429): O plano gratuito da Google tem limites de geração. Aguarde 1 minuto e tente novamente.");
+      // Tratamento Inteligente de Erros
+      if (msg === "QUOTA_EXCEEDED" || msg.includes("429")) {
+        setError("⚠️ Limite de Cota Excedido (Erro 429). A chave padrão do sistema atingiu o limite. POR FAVOR, INSIRA SUA PRÓPRIA API KEY GRÁTIS DO GOOGLE ABAIXO.");
+        setShowKeyInput(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (msg === "INVALID_KEY" || msg.includes("403")) {
+        setError("⚠️ Chave Inválida ou Sem Permissão. Verifique se copiou corretamente do Google AI Studio.");
+        setShowKeyInput(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (msg === "API Key_MISSING") {
+        setError("⚠️ Você precisa de uma API Key para gerar imagens.");
+        setShowKeyInput(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setError(msg || "Ocorreu um erro ao gerar a imagem. Tente novamente.");
+        setError(msg || "Ocorreu um erro desconhecido. Tente novamente.");
       }
     } finally {
       setIsGenerating(false);
@@ -263,7 +277,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 pb-32">
       {/* Header */}
-      <header className="fixed top-0 w-full z-40 bg-slate-950/80 backdrop-blur-md border-b border-white/5">
+      <header className="fixed top-0 w-full z-40 bg-slate-950/80 backdrop-blur-md border-b border-white/5 transition-all">
         <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex flex-col">
             <h1 className="text-xl font-bold text-white tracking-wider flex items-center gap-2">
@@ -275,29 +289,14 @@ function App() {
           </div>
           
           <div className="flex items-center gap-2">
-             {/* Simple API Key Input in Header for ease of access */}
-             <form onSubmit={handleSaveApiKey} className="hidden md:flex items-center gap-2 mr-2">
-                <input 
-                  type="password" 
-                  value={manualApiKey}
-                  onChange={(e) => setManualApiKey(e.target.value)}
-                  placeholder="Cole sua API Key aqui..."
-                  className="w-40 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:w-64 transition-all outline-none placeholder-slate-500"
-                />
-                <button type="submit" title="Salvar Key" className="p-1.5 bg-indigo-600 rounded-md hover:bg-indigo-500 transition-colors">
-                  <KeyRound className="w-3.5 h-3.5 text-white" />
-                </button>
-             </form>
-
-             <a 
-               href="https://aistudio.google.com/app/apikey" 
-               target="_blank" 
-               rel="noopener noreferrer"
-               className="hidden sm:flex items-center gap-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-md transition-colors border border-emerald-500/20"
+             {/* Key Button Toggle */}
+             <button 
+               onClick={() => setShowKeyInput(!showKeyInput)}
+               className={`p-2 rounded-full transition-colors ${manualApiKey ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-slate-400'}`}
+               title="Configurar API Key"
              >
-               Criar Key Grátis
-               <ExternalLink className="w-3 h-3" />
-             </a>
+               <KeyRound className="w-4 h-4" />
+             </button>
 
              <button 
                onClick={handleLogout} 
@@ -309,17 +308,39 @@ function App() {
           </div>
         </div>
         
-        {/* API Key warning for mobile or empty state */}
-        {!manualApiKey && (
-           <div className="bg-amber-500/10 text-amber-200 text-xs text-center py-2 border-b border-amber-500/20 px-4 flex items-center justify-center gap-2">
-             <AlertTriangle className="w-3 h-3" />
-             <span>Você precisa de uma API Key para usar o app.</span>
-             <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline font-bold">Gerar aqui</a>
+        {/* API Key Dropdown / Warning Area */}
+        {(showKeyInput || !manualApiKey || error?.includes("API Key") || error?.includes("429")) && (
+           <div className="bg-slate-900 border-b border-slate-800 p-4 animate-in slide-in-from-top-2">
+             <div className="max-w-xl mx-auto">
+                <div className="flex items-start gap-3 mb-3">
+                   <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                   <div className="text-xs text-slate-300">
+                      <p className="font-bold text-amber-400 mb-1">Configuração Necessária (Google API)</p>
+                      <p>Para usar este app sem limites de cota e erros, você precisa da sua própria chave gratuita do Google.</p>
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline mt-1 inline-block">
+                        1. Clique aqui para gerar sua chave (Get API Key)
+                      </a>
+                   </div>
+                </div>
+                
+                <form onSubmit={handleSaveApiKey} className="flex gap-2">
+                    <input 
+                      type="password" 
+                      value={manualApiKey}
+                      onChange={(e) => setManualApiKey(e.target.value)}
+                      placeholder="Cole sua chave aqui (começa com AIza...)"
+                      className="flex-1 bg-black border border-slate-700 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button type="submit" className="px-4 py-2 bg-indigo-600 rounded-lg text-white text-xs font-bold hover:bg-indigo-500 transition-colors">
+                      Salvar Chave
+                    </button>
+                </form>
+             </div>
            </div>
         )}
 
         {/* Mode Tabs */}
-        <div className="max-w-2xl mx-auto px-6 pb-2 pt-2 flex gap-2 overflow-x-auto no-scrollbar justify-start sm:justify-center">
+        <div className="max-w-2xl mx-auto px-6 pb-2 pt-2 flex gap-2 overflow-x-auto no-scrollbar justify-start sm:justify-center mt-2">
           {[
             { id: AppMode.SOLO, label: 'Solo', icon: UserIcon },
             { id: AppMode.DUO, label: 'Dupla', icon: Users },
@@ -346,30 +367,15 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-6 pt-40 space-y-10">
+      <main className="max-w-2xl mx-auto px-6 pt-[220px] space-y-10">
         
         {/* Error Display */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-4 rounded-xl text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-2 shadow-lg shadow-red-900/10">
             <Info className="w-5 h-5 shrink-0 mt-0.5 text-red-400" /> 
-            <div className="flex flex-col gap-2 w-full">
-              <span className="font-medium">{error}</span>
-              {/* If API key error, show input explicitly in error box */}
-              {(error.includes("API Key") || error.includes("403")) && (
-                 <div className="mt-2 bg-black/20 p-3 rounded-lg">
-                     <p className="text-xs text-slate-400 mb-2">Cole sua chave aqui para corrigir:</p>
-                     <form onSubmit={handleSaveApiKey} className="flex gap-2">
-                        <input 
-                        type="password"
-                        value={manualApiKey}
-                        onChange={(e) => setManualApiKey(e.target.value)}
-                        placeholder="Cole sua API Key aqui..."
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-indigo-500"
-                        />
-                        <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-xs font-bold transition-colors">Salvar</button>
-                    </form>
-                 </div>
-              )}
+            <div className="flex flex-col gap-1 w-full">
+              <span className="font-bold">Atenção</span>
+              <span>{error}</span>
             </div>
           </div>
         )}

@@ -7,7 +7,7 @@ export const generateImage = async (state: AppState, dynamicApiKey?: string): Pr
   const apiKey = dynamicApiKey || process.env.API_KEY;
 
   if (!apiKey) {
-    throw new Error("API Key is missing. Please provide a valid API Key.");
+    throw new Error("API Key_MISSING");
   }
 
   if (!state.referenceImage) {
@@ -165,6 +165,16 @@ export const generateImage = async (state: AppState, dynamicApiKey?: string): Pr
   } catch (error: any) {
     console.error("Gemini Generation Error:", error);
     let errorMessage = error.message || "Failed to generate image.";
+    
+    // Tratamento específico de erros da API
+    if (errorMessage.includes("429") || errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+        throw new Error("QUOTA_EXCEEDED");
+    }
+    
+    if (errorMessage.includes("403") || errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("API Key")) {
+        throw new Error("INVALID_KEY");
+    }
+
     if (errorMessage.includes("{")) {
         try {
             const parsed = JSON.parse(errorMessage.substring(errorMessage.indexOf("{")));
