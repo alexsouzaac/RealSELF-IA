@@ -80,20 +80,20 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
              <Sparkles className="w-10 h-10 text-white" />
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-white tracking-tight">RealSelf AI</h1>
-            <p className="text-slate-400 mt-2">Transforme suas fotos com Inteligência Artificial</p>
+            <h1 className="text-3xl font-bold text-white tracking-tight">Alex Souza</h1>
+            <p className="text-slate-400 mt-2 font-medium">Agência de Marketing e Criação de Conteúdo</p>
           </div>
         </div>
 
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-white mb-1">
-                {view === 'LOGIN' && 'Acessar Conta'}
+                {view === 'LOGIN' && 'Acessar Agência'}
                 {view === 'REGISTER' && 'Criar Conta'}
                 {view === 'FORGOT_PASS' && 'Recuperar Senha'}
             </h2>
             <p className="text-sm text-slate-400">
-                {view === 'LOGIN' && 'Entre para continuar criando.'}
+                {view === 'LOGIN' && 'Entre para gerenciar sua marca.'}
                 {view === 'REGISTER' && 'Comece gratuitamente hoje.'}
                 {view === 'FORGOT_PASS' && 'Defina uma nova senha.'}
             </p>
@@ -135,7 +135,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300 ml-1">
-                {view === 'FORGOT_PASS' ? 'Nova Senha' : 'Senha'}
+                {view === 'FORGOT_PASS' && 'Nova '}Senha
               </label>
               <div className="relative group">
                 <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
@@ -241,7 +241,7 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         </div>
         
         <p className="text-center text-slate-600 text-xs mt-8">
-            &copy; 2025 RealSelf AI. Todos os direitos reservados.
+            &copy; 2025 Alex Souza - Agência de Marketing e Criação de Conteúdo.
         </p>
       </div>
     </div>
